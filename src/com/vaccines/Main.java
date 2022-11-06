@@ -1,36 +1,53 @@
 package com.vaccines;
 
+import com.vaccines.evaluations.EvaluationType;
+import com.vaccines.models.SVIR;
+import org.apache.commons.lang3.time.StopWatch;
 import org.moeaframework.Executor;
 import org.moeaframework.core.NondominatedPopulation;
-import org.moeaframework.core.Variable;
+import org.moeaframework.core.Solution;
 
 import java.util.List;
 
 public class Main {
 
     public static void main(String[] args) {
-//        List<NondominatedPopulation> results = new Executor()
-//                .withProblemClass(SVIRProblem.class)
-//                .withAlgorithm("CMAES")
-//                .withMaxEvaluations(10000)
-//                .runSeeds(10);
-//        double minObj = Double.MAX_VALUE;
-//        var bestResult = new Variable[3];
-//        for (NondominatedPopulation pop: results) {
-//            double obj = pop.get(0).getObjective(0);
-//            if (obj < minObj) {
-//                minObj = obj;
-//                bestResult = new Variable[]{pop.get(0).getVariable(0), pop.get(0).getVariable(1), pop.get(0).getVariable(2)};
-//            }
-//        }
-//        System.out.println("Error = " + minObj +
-//                "\nnatural death rate = " + bestResult[0] +
-//                "\nsusceptible transmission rate = " + bestResult[1] +
-//                "\nrecoveryRate = " + bestResult[2]);
 
-        SVIRProblem problem = new SVIRProblem();
-        double[] bestParams = problem.parameterGridSearch();
-        problem.model.saveResultsToFile();
-        problem.saveRealDataToFile();
+        int simulationLength = 180;
+        int adminLevel = 2;
+        int maxWeeklyVaccines = 1000000;
+        EvaluationType evaluationType = EvaluationType.InfectedSum;
+
+        SVIR svir = new SVIR(simulationLength, adminLevel);
+        SVIRProblem problem = new SVIRProblem(svir, maxWeeklyVaccines, evaluationType);
+
+        StopWatch watch = new StopWatch();
+        watch.start();
+        List<NondominatedPopulation> results = new Executor()
+                .withProblem(problem)
+                .withAlgorithm("PAES")
+                .withMaxEvaluations(10)
+                .distributeOnAllCores()
+                .runSeeds(1);
+        watch.stop();
+        System.out.println("Elapsed time: " + watch.getTime() / 1000.0 + " s");
+
+        System.out.println("Results:");
+        Solution bestSolution = null;
+        for (var result : results) {
+            for (Solution solution : result) {
+                if (!solution.violatesConstraints()) {
+                    double objective = solution.getObjective(0);
+                    System.out.println(objective);
+                    if (bestSolution == null || objective < bestSolution.getObjective(0)) {
+                        bestSolution = solution;
+                    }
+                }
+            }
+        }
+        if  (bestSolution != null)
+            System.out.println("Best solution: " + bestSolution.getObjective(0));
+        else
+            System.out.println("No solution met the constraints.");
     }
 }
