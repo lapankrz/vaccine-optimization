@@ -3,7 +3,7 @@ package com.vaccines.populations;
 public class Flow {
     public double students, adults, seniors;
 
-    public Flow(int students, int adults, int seniors) {
+    public Flow(double students, double adults, double seniors) {
         this.students = students;
         this.adults = adults;
         this.seniors = seniors;

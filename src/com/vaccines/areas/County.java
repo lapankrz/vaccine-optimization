@@ -36,9 +36,9 @@ public class County extends AdminDivision {
         for (AdminDivision division : lowerDivisions) {
             Commune c = (Commune)division;
             if (c.population instanceof SVIRPopulation pop) {
-                int infectedStudents = (int)Math.round(pop.getTotalStudents() * casesPer10k / 10000.0);
-                int infectedAdults = (int)Math.round(pop.getTotalAdults() * casesPer10k / 10000.0);
-                int infectedSeniors = (int)Math.round(pop.getTotalSeniors() * casesPer10k / 10000.0);
+                double infectedStudents = Math.round(pop.getTotalStudents() * casesPer10k / 10000.0);
+                double infectedAdults = Math.round(pop.getTotalAdults() * casesPer10k / 10000.0);
+                double infectedSeniors = Math.round(pop.getTotalSeniors() * casesPer10k / 10000.0);
                 pop.I.changePopulations(infectedStudents, infectedAdults, infectedSeniors);
                 pop.S.changePopulations(-infectedStudents, -infectedAdults, -infectedSeniors);
             }

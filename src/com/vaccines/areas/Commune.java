@@ -2,6 +2,7 @@ package com.vaccines.areas;
 
 import com.vaccines.models.ModelType;
 import com.vaccines.populations.Population;
+import com.vaccines.populations.SVEIRPopulation;
 import com.vaccines.populations.SVIRPopulation;
 
 public class Commune extends AdminDivision {
@@ -22,14 +23,16 @@ public class Commune extends AdminDivision {
         this.code = getProperCode(data[1]);
         this.name = data[2];
         this.isLowestDivision = true;
+
+        int students = Integer.parseInt(data[3]);
+        int adults = Integer.parseInt(data[4]);
+        int seniors = Integer.parseInt(data[5]);
+
         if (type == ModelType.SVIR) {
-            int students = Integer.parseInt(data[3]);
-            int adults = Integer.parseInt(data[4]);
-            int seniors = Integer.parseInt(data[5]);
-            population = new SVIRPopulation(students, adults, seniors);
+            population = new SVIRPopulation(this, students, adults, seniors);
         }
         else if (type == ModelType.SVEIR) {
-            //TODO: Implement SVEIR model
+            population = new SVEIRPopulation(students, adults, seniors);
         }
     }
 

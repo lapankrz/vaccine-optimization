@@ -1,49 +1,69 @@
-package com.vaccines;
+package com.vaccines.problems;
 
+import com.vaccines.Main;
 import com.vaccines.evaluations.EvaluationType;
 import com.vaccines.models.SVIR;
 import org.moeaframework.core.Solution;
 import org.moeaframework.core.variable.RealVariable;
 import org.moeaframework.problem.AbstractProblem;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 
-public class SVIRProblem extends AbstractProblem {
-    public SVIR model;
-    public int lengthInWeeks;
-    public int maxWeeklyVaccines;
-    public int subdivisionCount;
-    public EvaluationType evaluationType;
-    int evaluation = 0;
+public class SVIRProblem extends OptimizationProblem {
 
     public SVIRProblem(SVIR model, int maxWeeklyVaccines, EvaluationType evaluationType) {
-        super(model.getNumberOfWeeks() * model.getLowestDivisionCount(), 1, model.getNumberOfWeeks());
-        this.model = model;
-        this.maxWeeklyVaccines = maxWeeklyVaccines;
-        this.lengthInWeeks = model.getNumberOfWeeks();
-        this.subdivisionCount = model.getLowestDivisionCount();
-        this.evaluationType = evaluationType;
+        super(model, maxWeeklyVaccines, evaluationType);
     }
 
     @Override
-    public Solution newSolution() {
-        Solution solution = new Solution(getNumberOfVariables(), getNumberOfObjectives(), getNumberOfConstraints());
-        for (int i = 0; i < getNumberOfVariables(); ++i) {
-            solution.setVariable(i, new RealVariable(0, 1));
+    void evaluateWithWeightScaling(Solution solution) {
+        SVIR svir = new SVIR((SVIR)model);
+        int[][] vaccines = new int[lengthInWeeks][subdivisionCount];
+
+        for (int week = 0; week < lengthInWeeks; ++week) {
+            double weeklyVariableSum = 0.0;
+            for (int subdivision = 0; subdivision < subdivisionCount; ++subdivision) {
+                int index = subdivisionCount * week + subdivision;
+                double variable = ((RealVariable)solution.getVariable(index)).getValue();
+                weeklyVariableSum += variable;
+                vaccines[week][subdivision] = (int) (variable * maxWeeklyVaccines);// / subdivisionCount);
+            }
+            for (int subdivision = 0; subdivision < subdivisionCount; ++subdivision) {
+                vaccines[week][subdivision] /= weeklyVariableSum;
+            }
         }
-        System.out.println("Starting new seed...");
-        return solution;
+
+        svir.setVaccineAvailability(vaccines);
+        svir.simulate();
+        double score = calculateObjective(svir);
+        solution.setObjective(0, score);
+
+        for (int i = 0; i < lengthInWeeks; ++i) {
+            solution.setConstraint(i, 0);
+        }
+        if (evaluation % 1000 == 0 && evaluation > 0) {
+            int eval = evaluation++;
+            if (eval % 1000 == 0) {
+                System.out.println("Evaluation " + eval + " - score: " + score);
+                String fileName = "problem" + Main.solutionNumber + "_eval" + eval + "_score" + (int)score + "_" + Main.dtf.format(LocalDateTime.now()) + ".csv";
+                Main.writeSolutionToFile(solution, fileName, lengthInWeeks, subdivisionCount);
+            }
+        }
+        else {
+            evaluation++;
+        }
     }
 
     @Override
-    public void evaluate(Solution solution) {
-        SVIR svir = new SVIR(model);
+    void evaluateWithConstraintChecking(Solution solution) {
+        SVIR svir = new SVIR((SVIR)model);
         int[][] vaccines = new int[lengthInWeeks][subdivisionCount];
         for (int i = 0; i < getNumberOfVariables(); ++i) { //format: (week1:) subdiv1, subdiv2,..., (week2:) subdiv1,etc
             double variable = ((RealVariable)solution.getVariable(i)).getValue();
             int week = i / subdivisionCount;
             int subdivision = i - week * subdivisionCount;
-            vaccines[week][subdivision] = (int) (variable * maxWeeklyVaccines / subdivisionCount);
+            vaccines[week][subdivision] = (int) (variable * maxWeeklyVaccines);
         }
         svir.setVaccineAvailability(vaccines);
         svir.simulate();
@@ -56,19 +76,6 @@ public class SVIRProblem extends AbstractProblem {
         }
 
         System.out.println("Evaluation " + evaluation++);
-    }
-
-    private double calculateObjective(SVIR svir) {
-        if (evaluationType == EvaluationType.InfectedSum) {
-            return svir.evaluation.infectedSum;
-        }
-        else if (evaluationType == EvaluationType.DeadSum) {
-            return svir.evaluation.deadSum;
-        }
-        else if (evaluationType == EvaluationType.MostConcurrentInfected) {
-            return svir.evaluation.mostConcurrentInfected;
-        }
-        return 0;
     }
 
 //    public double[] parameterGridSearch() {

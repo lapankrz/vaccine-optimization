@@ -1,6 +1,8 @@
 package com.vaccines.models;
 
+import com.vaccines.areas.AdminDivision;
 import com.vaccines.areas.Country;
+import com.vaccines.evaluations.Evaluation;
 
 public abstract class EpidemiologicalModel {
     Country country;
@@ -9,6 +11,7 @@ public abstract class EpidemiologicalModel {
     int simulationLength;
     int administrativeLevel = 3;
     int[][] vaccineAvailability; // number of vaccines available in each week of simulation
+    public Evaluation evaluation = new Evaluation();
 
     // administrative level: 3 - simulate communes, 2 - simulate counties, 1 - simulate voivodeships, 0 - simulate country
     public EpidemiologicalModel(int simulationLength, int administrativeLevel) {
@@ -24,6 +27,11 @@ public abstract class EpidemiologicalModel {
 
     protected abstract void simulateStep();
 
+    public void setVaccineAvailability(int[][] availability)
+    {
+        vaccineAvailability = availability;
+    }
+
     private int getVaccinationsForToday(int subdivisionNo) {
         int week = getSimulationWeek();
         return vaccineAvailability[week][subdivisionNo] / 7;
@@ -37,5 +45,9 @@ public abstract class EpidemiologicalModel {
     public int getNumberOfWeeks()
     {
         return (int)Math.ceil((double)simulationLength / 7.0);
+    }
+
+    public int getLowestDivisionCount() {
+        return country.getAllDivisionsOnLevel(administrativeLevel).size();
     }
 }

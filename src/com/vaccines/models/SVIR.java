@@ -7,8 +7,6 @@ import com.vaccines.populations.SVIRPopulation;
 import java.io.FileWriter;
 
 public class SVIR extends EpidemiologicalModel {
-//    int[] timeSeriesS, timeSeriesV, timeSeriesI, timeSeriesR;
-    public Evaluation evaluation = new Evaluation();
 
     public SVIR(int simulationLength, int administrativeLevel) {
         super(simulationLength, administrativeLevel);
@@ -31,19 +29,28 @@ public class SVIR extends EpidemiologicalModel {
         country = new Country(model.country);
     }
 
-    public void setVaccineAvailability(int[][] availability)
-    {
-        vaccineAvailability = availability;
-    }
-
     @Override
     protected void simulateStep() {
         int[] vaccinesForCurrentWeek = getVaccinationsForCurrentWeek();
         Evaluation eval = country.simulateStep(vaccinesForCurrentWeek, administrativeLevel);
+
         evaluation.infectedSum += eval.infectedSum;
         evaluation.deadSum += eval.deadSum;
-        if (eval.infectedSum > evaluation.mostConcurrentInfected)
-            evaluation.mostConcurrentInfected = eval.infectedSum;
+        if (eval.mostConcurrentInfected > evaluation.mostConcurrentInfected)
+            evaluation.mostConcurrentInfected = eval.mostConcurrentInfected;
+
+        double s = 0.0, v = 0.0, i = 0.0, r = 0.0;
+        for (AdminDivision division : country.lowerDivisions) {
+            SVIRPopulation pop = (SVIRPopulation)(division.population);
+            s += pop.S.getTotalPopulation();
+            v += pop.V.getTotalPopulation();
+            i += pop.I.getTotalPopulation();
+            r += pop.R.getTotalPopulation();
+        }
+//        System.out.println("Step " + simulationStep + " - S: " + s + ", V: " + v + ", I: " + i + ", R: " + r);
+//        System.out.println("Step " + simulationStep + " - Most concurrent so far: " + (int)evaluation.mostConcurrentInfected);
+
+
         country.applyChanges(administrativeLevel);
     }
 
@@ -57,32 +64,6 @@ public class SVIR extends EpidemiologicalModel {
     private int[] getVaccinationsForCurrentWeek() {
         int week = getSimulationWeek();
         return vaccineAvailability[week];
-    }
-
-    public int getLowestDivisionCount() {
-        int count = 0;
-        if (administrativeLevel == 0) {
-            count += 1;
-        }
-        else {
-            for (AdminDivision division : country.lowerDivisions) {
-                if (administrativeLevel == 1) { // voivodeship count
-                    count += 1;
-                } else {
-                    for (AdminDivision division1 : division.lowerDivisions) {
-                        if (administrativeLevel == 2) { // county count
-                            count += 1;
-                        }
-                        else {
-                            for (AdminDivision division2 : division1.lowerDivisions) {
-                                count += 1; // commune count
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return count;
     }
 
 //    public int[][] getResults() {

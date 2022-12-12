@@ -1,10 +1,12 @@
 package com.vaccines.areas;
 
+import com.vaccines.evaluations.Evaluation;
 import com.vaccines.models.ModelType;
 import com.vaccines.populations.Flow;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Objects;
 
@@ -27,6 +29,45 @@ public class Country extends AdminDivision {
         }
     }
 
+    public Evaluation simulateStep(int[] vaccines, int levelsDown) {
+        Evaluation evaluation = new Evaluation();
+        int vaccineIndex = 0;
+
+        if (levelsDown == 0)
+        {
+            evaluation = population.update(vaccines[0] / 7);
+        }
+        else
+        {
+            for (AdminDivision voivodeship : lowerDivisions)
+            {
+                if (levelsDown == 1)
+                {
+                    evaluation.add(voivodeship.population.update(vaccines[vaccineIndex++] / 7));
+                }
+                else
+                {
+                    for (AdminDivision county : voivodeship.lowerDivisions)
+                    {
+                        if (levelsDown == 2)
+                        {
+                            evaluation.add(county.population.update(vaccines[vaccineIndex++] / 7));
+                        }
+                        else
+                        {
+                            for (AdminDivision commune : county.lowerDivisions)
+                            {
+                                evaluation.add(commune.population.update(vaccines[vaccineIndex++] / 7));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return evaluation;
+    }
+
     public Voivodeship getVoivodeship(String code) {
         return (Voivodeship) getLowerDivision(code, 1);
     }
@@ -40,6 +81,34 @@ public class Country extends AdminDivision {
     }
 
     public void loadPolishData(ModelType type) {
+        loadPolishData(type, 0);
+    }
+
+    public ArrayList<AdminDivision> getAllDivisionsOnLevel(int administrativeLevel) {
+        ArrayList<AdminDivision> divisions = new ArrayList<>();
+        if (administrativeLevel == 0) {
+            divisions.add(this);
+        }
+        else {
+            for (AdminDivision voivodeship : this.lowerDivisions) {
+                if (administrativeLevel == 1) { // voivodeship count
+                    divisions.add(voivodeship);
+                } else {
+                    for (AdminDivision county : voivodeship.lowerDivisions) {
+                        if (administrativeLevel == 2) { // county count
+                            divisions.add(county);
+                        }
+                        else {
+                            divisions.addAll(county.lowerDivisions);
+                        }
+                    }
+                }
+            }
+        }
+        return divisions;
+    }
+
+    public void loadPolishData(ModelType type, int minFlowVolume) {
         name = "Poland";
 
         // voivodeship data
@@ -113,9 +182,11 @@ public class Country extends AdminDivision {
                 Commune to = getCommune(data[1]);
                 if (from != null && to != null) {
                     int volume = Integer.parseInt(data[2]);
-                    Flow flow = new Flow(0, volume, 0);
-                    from.population.outFlow.put(to, flow);
-                    to.population.inFlow.put(from, flow);
+                    if (volume > 0 && volume >= minFlowVolume) {
+                        Flow flow = new Flow(0, volume, 0);
+                        from.population.outFlow.put(to, flow);
+                        to.population.inFlow.put(from, flow);
+                    }
                 }
             }
             csvReader.close();
@@ -142,17 +213,19 @@ public class Country extends AdminDivision {
                 Commune to = getCommune(toCode);
                 if (from != null && to != null) {
                     int volume = Integer.parseInt(data[5]);
-                    Flow flow = new Flow(volume, 0, 0);
-                    HashMap<AdminDivision, Flow> fromMap = from.population.outFlow;
-                    HashMap<AdminDivision, Flow> toMap = to.population.inFlow;
-                    if (fromMap.containsKey(to)) { // update existing flow
-                        Flow adultFlow = fromMap.get(to);
-                        flow.adults = adultFlow.adults;
-                        fromMap.remove(to);
-                        toMap.remove(from);
+                    if (volume > 0 && volume >= minFlowVolume) {
+                        Flow flow = new Flow(volume, 0, 0);
+                        HashMap<AdminDivision, Flow> fromMap = from.population.outFlow;
+                        HashMap<AdminDivision, Flow> toMap = to.population.inFlow;
+                        if (fromMap.containsKey(to)) { // update existing flow
+                            Flow adultFlow = fromMap.get(to);
+                            flow.adults = adultFlow.adults;
+                            fromMap.remove(to);
+                            toMap.remove(from);
+                        }
+                        fromMap.put(to, flow);
+                        toMap.put(from, flow);
                     }
-                    fromMap.put(to, flow);
-                    toMap.put(from, flow);
                 }
             }
             csvReader.close();
@@ -176,6 +249,25 @@ public class Country extends AdminDivision {
             csvReader.close();
         } catch (Exception e) {
             System.out.println("Infected data file not found");
+        }
+
+        for (AdminDivision voivodeship : lowerDivisions) {
+            for (AdminDivision county : voivodeship.lowerDivisions) {
+                for (AdminDivision commune : county.lowerDivisions) {
+                    double studentFlow = commune.population.getTotalStudents() - commune.population.getTotalStudentOutFlow();
+                    double adultFlow = commune.population.getTotalAdults() - commune.population.getTotalAdultOutFlow();
+                    double seniorFlow = commune.population.getTotalSeniors() - commune.population.getTotalSeniorOutFlow();
+                    Flow flow = new Flow(studentFlow, adultFlow, seniorFlow);
+
+                    if (commune.population.inFlow.containsKey(commune)) {
+                        commune.population.inFlow.replace(commune, flow);
+                        commune.population.outFlow.replace(commune, flow);
+                    } else {
+                        commune.population.inFlow.put(commune, flow);
+                        commune.population.outFlow.put(commune, flow);
+                    }
+                }
+            }
         }
 
         // aggregate data from lower subdivisions

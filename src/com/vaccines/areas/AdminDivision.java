@@ -2,6 +2,7 @@ package com.vaccines.areas;
 
 import com.vaccines.evaluations.Evaluation;
 import com.vaccines.populations.Population;
+import com.vaccines.populations.SVEIRPopulation;
 import com.vaccines.populations.SVIRPopulation;
 import java.util.ArrayList;
 import java.util.Objects;
@@ -26,34 +27,11 @@ public class AdminDivision {
             population = new SVIRPopulation((SVIRPopulation)division.population);
         }
         else {
-            //SVEIR
+            population = new SVEIRPopulation((SVEIRPopulation)division.population);
         }
     }
 
-    public Evaluation simulateStep(int[] vaccines, int levelsDown) {
-        Evaluation evaluation = new Evaluation();
-        int vaccineIndex = 0;
-        if (levelsDown > 0) {
-            for (AdminDivision division1 : lowerDivisions) {
-                if (levelsDown > 1) {
-                    for (AdminDivision division2 : division1.lowerDivisions) {
-                        if (levelsDown > 2) {
-                            for (AdminDivision division3 : division2.lowerDivisions) {
-                                evaluation.add(division3.population.update(vaccines[vaccineIndex++] / 7));
-                            }
-                        }
-                        else
-                            evaluation.add(division2.population.update(vaccines[vaccineIndex++] / 7));
-                    }
-                }
-                else
-                    evaluation.add(division1.population.update(vaccines[vaccineIndex++] / 7));
-            }
-        }
-        else
-            evaluation = population.update(vaccines[0] / 7);
-        return evaluation;
-    }
+
 
     public void applyChanges(int levelsDown) {
         if (levelsDown > 0)

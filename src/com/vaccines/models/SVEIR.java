@@ -1,109 +1,92 @@
-//package com.vaccines.models;
-//
-//public class SVEIR {
-//    int simulationStep = 0;
-//    int susceptible, vaccinated, exposed, infected, recovered;
-//    int[] timeseriesS, timeseriesV, timeseriesE, timeseriesI, timeseriesR;
-//
-//    int[] vaccineAvailability; // number of vaccines available in each week of simulation
-//
-//    int simulationLength;
-//
-//    public SVEIR(int simulationLength) {
-//        this.simulationLength = simulationLength;
-//        type = ModelType.SVIR;
-//        vaccineAvailability = new int[getNumberOfWeeks()];
+package com.vaccines.models;
+
+import com.vaccines.areas.AdminDivision;
+import com.vaccines.areas.Country;
+import com.vaccines.evaluations.Evaluation;
+import com.vaccines.populations.SVEIRPopulation;
+import com.vaccines.populations.SVIRPopulation;
+
+public class SVEIR extends EpidemiologicalModel {
+
+    public SVEIR(int simulationLength, int administrativeLevel) {
+        super(simulationLength, administrativeLevel);
+        type = ModelType.SVEIR;
+        vaccineAvailability = new int[getNumberOfWeeks()][getLowestDivisionCount()];
+        country.loadPolishData(type);
+    }
+
+    public SVEIR(int simulationLength) {
+        super(simulationLength);
+        type = ModelType.SVIR;
+        vaccineAvailability = new int[getNumberOfWeeks()][getLowestDivisionCount()];
+        country.loadPolishData(type);
+    }
+
+    public SVEIR(SVEIR model) {
+        super(model.simulationLength, model.administrativeLevel);
+        type = ModelType.SVIR;
+        vaccineAvailability = new int[getNumberOfWeeks()][getLowestDivisionCount()];
+        country = new Country(model.country);
+    }
+
+    @Override
+    protected void simulateStep() {
+        int[] vaccinesForCurrentWeek = getVaccinationsForCurrentWeek();
+        Evaluation eval = country.simulateStep(vaccinesForCurrentWeek, administrativeLevel);
+
+        evaluation.infectedSum += eval.infectedSum;
+        evaluation.deadSum += eval.deadSum;
+        if (eval.mostConcurrentInfected > evaluation.mostConcurrentInfected)
+            evaluation.mostConcurrentInfected = eval.mostConcurrentInfected;
+
+        double s = 0.0, v = 0.0, e = 0.0, i = 0.0, r = 0.0;
+        for (AdminDivision division : country.lowerDivisions) {
+            SVEIRPopulation pop = (SVEIRPopulation)(division.population);
+            s += pop.S.getTotalPopulation();
+            v += pop.V.getTotalPopulation();
+            e += pop.E.getTotalPopulation();
+            i += pop.I.getTotalPopulation();
+            r += pop.R.getTotalPopulation();
+        }
+//        System.out.println("Step " + simulationStep + " - S: " + s + ", V: " + v + ", E: " + e + ", I: " + i + ", R: " + r);
+//        System.out.println("Step " + simulationStep + " - Most concurrent so far: " + (int)evaluation.mostConcurrentInfected);
+
+        country.applyChanges(administrativeLevel);
+    }
+
+    public void simulate() {
+        for (simulationStep = 0; simulationStep < simulationLength; ++simulationStep)
+        {
+            simulateStep();
+        }
+    }
+
+    private int[] getVaccinationsForCurrentWeek() {
+        int week = getSimulationWeek();
+        return vaccineAvailability[week];
+    }
+
+//    public int[][] getResults() {
+//        return new int[][] {timeSeriesS, timeSeriesV, timeSeriesI, timeSeriesR};
 //    }
+
+//    public void saveResultsToFile() {
+//        int[][] results = getResults();
+//        try {
+//            FileWriter writer = new FileWriter("svir_data.csv");
+//            for (int[] arr: results)
+//            {
+//                for (int i = 0; i < arr.length; ++i) {
+//                    writer.write(String.valueOf(arr[i]));
+//                    if (i != arr.length - 1) {
+//                        writer.write(",");
+//                    }
+//                }
+//                writer.write("\n");
+//            }
+//            writer.close();
+//        } catch (Exception ignored) {
 //
-//    public void setPopulations(int S, int V, int E, int I, int R) {
-//        susceptible = S;
-//        vaccinated = V;
-//        exposed = E;
-//        infected = I;
-//        recovered = R;
-//    }
-//
-//    public void setVaccineAvailability(int[] availability)
-//    {
-//        vaccineAvailability = availability;
-//    }
-//
-//    protected void simulateStep() {
-//        susceptible += calculateSusceptibleDiff();
-//        vaccinated += calculateVaccinatedDiff();
-//        exposed += calculateExposedDiff();
-//        infected += calculateInfectedDiff();
-//        recovered += calculateRecoveredDiff();
-//    }
-//
-//    public void simulate() {
-//        timeseriesS = new int[simulationLength];
-//        timeseriesV = new int[simulationLength];
-//        timeseriesE = new int[simulationLength];
-//        timeseriesI = new int[simulationLength];
-//        timeseriesR = new int[simulationLength];
-//        for (simulationStep = 0; simulationStep < simulationLength; ++simulationStep)
-//        {
-//            simulateStep();
-//            timeseriesS[simulationStep] = susceptible;
-//            timeseriesV[simulationStep] = vaccinated;
-//            timeseriesE[simulationStep] = exposed;
-//            timeseriesI[simulationStep] = infected;
-//            timeseriesR[simulationStep] = recovered;
 //        }
 //    }
-//
-//    public int[][] getResults() {
-//        return new int[][] { timeseriesS, timeseriesV, timeseriesE, timeseriesI, timeseriesR };
-//    }
-//
-//    private int calculateSusceptibleDiff() {
-//        int pop = getTotalPopulation();
-//        return (int)(-interactionRate * exposedTransmissionRate * exposed * susceptible / pop
-//                     -interactionRate * infectedTransmissionRate * infected * susceptible / pop
-//                     -getVaccinationsForToday() - naturalDeathRate * susceptible);
-//    }
-//
-//    private int calculateVaccinatedDiff() {
-//        int pop = getTotalPopulation();
-//        return (int)(-interactionRate * exposedTransmissionRate * vaccinatedTransmissionRate * exposed * vaccinated / pop
-//                     -interactionRate * infectedTransmissionRate * vaccinatedTransmissionRate * infected * vaccinated / pop
-//                     -naturalDeathRate * vaccinated + getVaccinationsForToday());
-//    }
-//
-//    private int calculateExposedDiff() {
-//        int pop = getTotalPopulation();
-//        return (int)(interactionRate * exposedTransmissionRate * exposed * susceptible / pop
-//                   + interactionRate * infectedTransmissionRate * infected * susceptible / pop
-//                   + interactionRate * exposedTransmissionRate * vaccinatedTransmissionRate * exposed * vaccinated / pop
-//                   + interactionRate * infectedTransmissionRate * vaccinatedTransmissionRate * infected * vaccinated / pop
-//                   - (naturalDeathRate + exposedImmunityPercentage + incubationRate) * exposed);
-//    }
-//
-//    private int calculateInfectedDiff() {
-//        return (int)(incubationRate * exposed - (naturalDeathRate + covidDeathRate + recoveryRate) * infected);
-//    }
-//
-//    private int calculateRecoveredDiff() {
-//        return (int)(exposedImmunityPercentage * exposed + recoveryRate * infected - naturalDeathRate * recovered);
-//    }
-//
-//    private int getTotalPopulation() {
-//        return susceptible + vaccinated + exposed + infected + recovered;
-//    }
-//
-//    private int getVaccinationsForToday() {
-//        int week = getSimulationWeek();
-//        return vaccineAvailability[week] / 7;
-//    }
-//
-//    private int getSimulationWeek()
-//    {
-//        return simulationStep / 7;
-//    }
-//
-//    private int getNumberOfWeeks()
-//    {
-//        return (int)Math.ceil((double)simulationLength / 7.0);
-//    }
-//}
+}

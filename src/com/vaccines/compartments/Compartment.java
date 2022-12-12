@@ -45,6 +45,10 @@ public class Compartment {
         return students + adults + seniors;
     }
 
+    public double getTotalDiff() {
+        return studentsDiff + adultsDiff + seniorsDiff;
+    }
+
     public void addPopulation(Compartment c) {
         students += c.students;
         adults += c.adults;
