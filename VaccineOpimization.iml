@@ -8,5 +8,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="moeaframework" level="application" />
+    <orderEntry type="library" name="jfree.jfreechart" level="project" />
   </component>
 </module>
