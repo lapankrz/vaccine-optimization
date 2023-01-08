@@ -1,8 +1,8 @@
 package com.vaccines.areas;
 
-public enum CountyType {
+public enum PowiatType {
     Grodzki, Ziemski;
-    public static CountyType parseType(String type) {
+    public static PowiatType parseType(String type) {
         if (type.toLowerCase().equals("grodzki")) {
             return Grodzki;
         }

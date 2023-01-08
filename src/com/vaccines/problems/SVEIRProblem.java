@@ -1,21 +1,22 @@
 package com.vaccines.problems;
 
+import com.vaccines.Main;
 import com.vaccines.evaluations.EvaluationType;
-import com.vaccines.models.SVEIR;
+import com.vaccines.models.EpidemiologicalModel;
 import org.moeaframework.core.Solution;
 import org.moeaframework.core.variable.RealVariable;
-import org.moeaframework.problem.AbstractProblem;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 
 public class SVEIRProblem extends OptimizationProblem {
 
-    public SVEIRProblem(SVEIR model, int maxWeeklyVaccines, EvaluationType evaluationType) {
-        super(model, maxWeeklyVaccines, evaluationType);
+    public SVEIRProblem(EpidemiologicalModel model, int maxWeeklyVaccines) {
+        super(model, maxWeeklyVaccines);
     }
 
     void evaluateWithWeightScaling(Solution solution) {
-        SVEIR sveir = new SVEIR((SVEIR)model);
+        EpidemiologicalModel sveir = new EpidemiologicalModel(model);
         int[][] vaccines = new int[lengthInWeeks][subdivisionCount];
 
         for (int week = 0; week < lengthInWeeks; ++week) {
@@ -33,37 +34,25 @@ public class SVEIRProblem extends OptimizationProblem {
 
         sveir.setVaccineAvailability(vaccines);
         sveir.simulate();
-        double score = calculateObjective(sveir);
-        solution.setObjective(0, score);
+        solution.setObjective(0, sveir.evaluation.infectedSum);
+        solution.setObjective(1, sveir.evaluation.mostConcurrentInfected);
 
         for (int i = 0; i < lengthInWeeks; ++i) {
             solution.setConstraint(i, 0);
         }
-        if (evaluation % 1 == 0)
-            System.out.println("Evaluation " + evaluation++ + " - score: " + score);
 
-        evaluation++;
-    }
-
-    void evaluateWithConstraintChecking(Solution solution) {
-        SVEIR sveir = new SVEIR((SVEIR)model);
-        int[][] vaccines = new int[lengthInWeeks][subdivisionCount];
-        for (int i = 0; i < getNumberOfVariables(); ++i) { //format: (week1:) subdiv1, subdiv2,..., (week2:) subdiv1,etc
-            double variable = ((RealVariable)solution.getVariable(i)).getValue();
-            int week = i / subdivisionCount;
-            int subdivision = i - week * subdivisionCount;
-            vaccines[week][subdivision] = (int) (variable * maxWeeklyVaccines);
+        if (evaluation % 100 == 0 && evaluation > 0) {
+            int eval = evaluation++;
+            if (eval % 100 == 0) {
+                System.out.println("Evaluation " + eval + " - INF: " + (int)sveir.evaluation.infectedSum
+                        + ", MCI: " + (int)sveir.evaluation.mostConcurrentInfected);
+                String fileName = "problem" + Main.solutionNumber + "_eval" + eval + "_inf" + (int)sveir.evaluation.infectedSum
+                        + "_mci" + (int)sveir.evaluation.mostConcurrentInfected + "_" + Main.dtf.format(LocalDateTime.now()) + ".csv";
+                Main.writeSolutionToFile(solution, fileName, lengthInWeeks, subdivisionCount);
+            }
         }
-        sveir.setVaccineAvailability(vaccines);
-        sveir.simulate();
-        double score = calculateObjective(sveir);
-        solution.setObjective(0, score);
-        for (int i = 0; i < lengthInWeeks; ++i) {
-            int sum = Arrays.stream(vaccines[i]).sum();
-            boolean constraintSatisfied = sum <= maxWeeklyVaccines;
-            solution.setConstraint(i, constraintSatisfied ? 0 : 1);
+        else {
+            evaluation++;
         }
-
-        System.out.println("Evaluation " + evaluation++);
     }
 }

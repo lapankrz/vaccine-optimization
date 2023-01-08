@@ -1,75 +1,114 @@
 package com.vaccines;
 
 import com.vaccines.areas.Country;
+import com.vaccines.areas.Powiat;
 import com.vaccines.evaluations.EvaluationType;
 import com.vaccines.models.EpidemiologicalModel;
 import com.vaccines.models.ModelType;
-import com.vaccines.models.SVIR;
+import com.vaccines.populations.Population;
+import com.vaccines.populations.SVEIRPopulation;
+import com.vaccines.populations.SVIRPopulation;
 import com.vaccines.problems.OptimizationProblem;
 import com.vaccines.problems.SVIRProblem;
 import org.apache.commons.lang3.time.StopWatch;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartFrame;
-import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
-import org.jfree.data.category.CategoryDataset;
-import org.jfree.data.category.DefaultCategoryDataset;
-import org.jfree.data.general.DefaultPieDataset;
-import org.jfree.data.general.DefaultValueDataset;
-import org.jfree.data.xy.XYDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.moeaframework.Executor;
 import org.moeaframework.core.NondominatedPopulation;
 import org.moeaframework.core.Solution;
 
-import javax.swing.*;
-import java.awt.*;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class Main {
 
-    static int COUNTRY_LEVEL = 0; // Poziom całego kraju
-    static int VOIVODESHIP_LEVEL = 1; // Poziom województw
-    static int COUNTY_LEVEL = 2; // Poziom powiatów
-    static int COMMUNE_LEVEL = 3; // Poziom gmin
-
     static int SIMULATION_LENGTH = 182; // długość symulacji w dniach (26 tygodni - pół roku)
-    static int MAX_WEEKLY_VACCINES = 500000; // maksymalna tygodniowa liczba szczepień
-//    static String ALGORITHM_NAME = "OMOPSO"; // algorytm optymalizacji
-    static String ALGORITHM_NAME = "NSGAII"; // algorytm optymalizacji
-    static int MAX_EVALUATIONS = 500000;
-    static int NUMBER_OF_SEEDS = 1;
+    static int MAX_WEEKLY_VACCINES = 600000; // maksymalna tygodniowa liczba szczepień
+    static String ALGORITHM_NAME = "OMOPSO"; // algorytm optymalizacji
+    static int MAX_EVALUATIONS = 1000000;
+    static int NUMBER_OF_SEEDS = 5;
 
-    public static int solutionNumber = 0;
+    public static int solutionNumber = 1;
     public static DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy_HH-mm");
 
     public static void main(String[] args) {
+        // SVIR
+//        EpidemiologicalModel svir = new EpidemiologicalModel(SIMULATION_LENGTH, ModelType.SVIR);
+//        SVIRProblem svirProblem = new SVIRProblem(svir, MAX_WEEKLY_VACCINES);
+//        runLongOptimization(svirProblem);
+        testModel();
+    }
 
-        var solution = loadSolutionFromFile("solutions\\NSGAII InfectedSum Counties\\problem0_eval16000_score107297_04-12-2022_18-09.csv");
-        plotByTotalPop(solution);
-//        // Infected sum - solution1
-//        SVIR svir = new SVIR(SIMULATION_LENGTH, COUNTY_LEVEL);
-//        SVIRProblem svirProblem = new SVIRProblem(svir, MAX_WEEKLY_VACCINES, EvaluationType.InfectedSum);
-//        runLongOptimization(svirProblem);
-//
-//        // Most concurrent infected - solution2
-//        svir = new SVIR(SIMULATION_LENGTH, COUNTY_LEVEL);
-//        svirProblem = new SVIRProblem(svir, MAX_WEEKLY_VACCINES, EvaluationType.InfectedSum);
-//        runLongOptimization(svirProblem);
-//
-//        // Dead sum - solution3
-//        svir = new SVIR(SIMULATION_LENGTH, COUNTY_LEVEL);
-//        svirProblem = new SVIRProblem(svir, MAX_WEEKLY_VACCINES, EvaluationType.InfectedSum);
-//        runLongOptimization(svirProblem);
+    static void testModel() {
+        EpidemiologicalModel svir = new EpidemiologicalModel(SIMULATION_LENGTH, ModelType.SVIR);
+        var plan = getVaccinationPlanBasedOnTotalPopulation(svir.country);
+        svir.setVaccineAvailability(plan);
+        svir.simulate();
+        Plotter.plotEvaluations(svir.infections, svir.mostConcurrent);
+        System.out.println("INF: " + (int)svir.evaluation.infectedSum + ", MCI: " + (int)svir.evaluation.mostConcurrentInfected);
+    }
+
+    static void startFromCheckpoint(OptimizationProblem problem, String filename) {
+        ArrayList<Double> variables = new ArrayList<Double>();
+        try {
+            BufferedReader csvReader = new BufferedReader(new FileReader(filename));
+            String row;
+            while ((row = csvReader.readLine()) != null) {
+                String[] data = row.split(",");
+                for (var d : data) {
+                    variables.add(Double.parseDouble(d));
+                }
+            }
+            csvReader.close();
+        } catch (Exception e) {
+            System.out.println("Error reading starting variable data. " + e.toString());
+        }
+
+        problem.loadStartingVariables(variables.stream().mapToDouble(i -> i).toArray());
+
+        StopWatch watch = new StopWatch();
+        watch.start();
+
+        List<NondominatedPopulation> results = new Executor()
+                .withProblem(problem)
+                .withAlgorithm(ALGORITHM_NAME)
+                .withMaxEvaluations(MAX_EVALUATIONS)
+                .distributeOnAllCores()
+                .runSeeds(NUMBER_OF_SEEDS);
+
+        watch.stop();
+        System.out.println("Elapsed time: " + watch.getTime() / 1000.0 + " s");
+
+        System.out.println("Results:");
+        Solution bestSolution = null;
+        for (var result : results) {
+            for (Solution solution : result) {
+                if (!solution.violatesConstraints()) {
+                    double objective = solution.getObjective(0);
+                    System.out.println(objective);
+                    if (bestSolution == null || objective < bestSolution.getObjective(0)) {
+                        bestSolution = solution;
+                    }
+                }
+            }
+        }
+        if  (bestSolution != null) {
+            System.out.println("Best solution: " + bestSolution.getObjective(0));
+            String modelType = problem instanceof SVIRProblem ? "svir" : "sveir";
+            String fileName = "solution" + solutionNumber++ + "_" + modelType + "_" + dtf.format(LocalDateTime.now()) + ".csv";
+            writeSolutionToFile(bestSolution, fileName, problem.lengthInWeeks, problem.subdivisionCount);
+        }
+        else
+            System.out.println("No solution met the constraints.");
     }
 
     static void runLongOptimization(OptimizationProblem problem) {
@@ -79,7 +118,7 @@ public class Main {
         List<NondominatedPopulation> results = new Executor()
                 .withProblem(problem)
                 .withAlgorithm(ALGORITHM_NAME)
-                .withProperty("swarmSize", 1000)
+                .withProperty("swarmSize", 500)
                 .withMaxEvaluations(MAX_EVALUATIONS)
                 .distributeOnAllCores()
                 .runSeeds(NUMBER_OF_SEEDS);
@@ -154,61 +193,77 @@ public class Main {
         return solution;
     }
 
-    public static void plotByTotalPop(ArrayList<ArrayList<Double>> solution) {
-
-        String title = "Waga przydziału szczepionek w zależności od populacji";
-        String xAxisLabel = "Populacja powiatu";
-        String yAxisLabel = "Waga przydziału szczepionek";
-
-        Country country = new Country();
-        country.loadPolishData(ModelType.SVIR);
-        var counties = country.getAllDivisionsOnLevel(Main.COUNTY_LEVEL);
-
-        XYSeriesCollection dataset = new XYSeriesCollection();
-
-//        for (int j = 13; j < solution.size(); ++j) {
-//            XYSeries series = new XYSeries("Week " + (j + 1));
-//            for (int i = 0; i < solution.get(0).size(); ++i) {
-//                var weight = solution.get(j).get(i);
-//                var county = counties.get(i);
-//                series.add(county.population.getTotalOutFlow() / county.population.getTotalPopulation(), weight);
-//            }
-//            dataset.addSeries(series);
-//            break;
-//        }
-
-        XYSeries series = new XYSeries("Sum across all weeks");
-        int divCount = solution.get(0).size();
-        int weeks = solution.size();
-        for (int divIndex = 0; divIndex < divCount; ++divIndex) {
-            double sum = 0;
-            for (ArrayList<Double> week : solution) {
-                sum += week.get(divIndex);
-            }
-            var county = counties.get(divIndex);
-            double x = county.population.getTotalInFlow() / county.getTotalPopulation();
-            double totpop = county.getTotalPopulation();
-            double y = sum / weeks;
-            series.add(x, y);
+    public static ArrayList<ArrayList<Double>> getVaccinationPlanBasedOnTotalPopulation(Country country) {
+        var plan = new ArrayList<ArrayList<Double>>();
+        ArrayList<Double> weekPlan = new ArrayList<>();
+        double totalPopulation = country.getTotalPopulation();
+        for (Powiat powiat : country.powiaty) {
+            double weight = powiat.getPopulationCount() / totalPopulation;
+            weekPlan.add(weight * MAX_WEEKLY_VACCINES);
         }
-        dataset.addSeries(series);
 
-        JFreeChart chart = ChartFactory.createXYLineChart(title, xAxisLabel, yAxisLabel, dataset, PlotOrientation.VERTICAL, true, true, false);
-
-        ChartFrame frame = new ChartFrame("Demo", chart);
-        frame.pack();
-        frame.setVisible(true);
+        for (int i = 0; i < SIMULATION_LENGTH / 7; ++i) {
+            plan.add(weekPlan);
+        }
+        return plan;
     }
 
-    public static void plotByPopDensity(String fileName) {
+    public static ArrayList<ArrayList<Double>> getVaccinationPlanBasedOnPopulationDensity(Country country) {
+        var plan = new ArrayList<ArrayList<Double>>();
+        ArrayList<Double> weekPlan = new ArrayList<>();
+        double sum = 0;
+        for (Powiat powiat : country.powiaty) {
+            sum += (powiat.getPopulationCount() / powiat.area);
+        }
 
+        for (Powiat powiat : country.powiaty) {
+            double weight = powiat.getPopulationCount() / powiat.area;
+            weekPlan.add(weight / sum * MAX_WEEKLY_VACCINES);
+        }
+
+        for (int i = 0; i < SIMULATION_LENGTH / 7; ++i) {
+            plan.add(weekPlan);
+        }
+        return plan;
     }
 
-    public static void plotByTotalInflow() {
+    public static ArrayList<ArrayList<Double>> getVaccinationPlanBasedOnTotalInflow(Country country) {
+        var plan = new ArrayList<ArrayList<Double>>();
+        ArrayList<Double> weekPlan = new ArrayList<>();
+        double sum = 0;
 
+        for (Powiat powiat : country.powiaty) {
+            sum += powiat.getPopulation().getTotalInFlow();
+        }
+
+        for (Powiat powiat : country.powiaty) {
+            double weight = powiat.getPopulation().getTotalInFlow();
+            weekPlan.add(weight / sum * MAX_WEEKLY_VACCINES);
+        }
+
+        for (int i = 0; i < SIMULATION_LENGTH / 7; ++i) {
+            plan.add(weekPlan);
+        }
+        return plan;
     }
 
-    public static void plotByTotalOutflow() {
+    public static ArrayList<ArrayList<Double>> getVaccinationPlanBasedOnTotalOutflow(Country country) {
+        var plan = new ArrayList<ArrayList<Double>>();
+        ArrayList<Double> weekPlan = new ArrayList<>();
+        double sum = 0;
 
+        for (Powiat powiat : country.powiaty) {
+            sum += powiat.getPopulation().getTotalInFlow();
+        }
+
+        for (Powiat powiat : country.powiaty) {
+            double weight = powiat.getPopulation().getTotalOutFlow();
+            weekPlan.add(weight / sum * MAX_WEEKLY_VACCINES);
+        }
+
+        for (int i = 0; i < SIMULATION_LENGTH / 7; ++i) {
+            plan.add(weekPlan);
+        }
+        return plan;
     }
 }

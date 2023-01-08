@@ -1,43 +1,28 @@
 package com.vaccines.populations;
 
 import com.vaccines.Config;
-import com.vaccines.areas.AdminDivision;
+import com.vaccines.areas.Powiat;
 import com.vaccines.compartments.Compartment;
 import com.vaccines.compartments.CompartmentType;
 import com.vaccines.evaluations.Evaluation;
 
-import java.util.ArrayList;
-
 public class SVEIRPopulation extends Population {
     public Compartment S, V, E, I, R;
 
-    public SVEIRPopulation(int[][] compartments) {
-        S = new Compartment(CompartmentType.Susceptible, compartments[0][0], compartments[0][1], compartments[0][2]);
-        V = new Compartment(CompartmentType.Vaccinated,compartments[1][0], compartments[1][1], compartments[1][2]);
-        V = new Compartment(CompartmentType.Exposed,compartments[2][0], compartments[2][1], compartments[2][2]);
-        I = new Compartment(CompartmentType.Infected,compartments[3][0], compartments[3][1], compartments[3][2]);
-        R = new Compartment(CompartmentType.Recovered,compartments[4][0], compartments[4][1], compartments[4][2]);
+    public SVEIRPopulation(int[] compartments) {
+        S = new Compartment(CompartmentType.Susceptible, compartments[0]);
+        V = new Compartment(CompartmentType.Vaccinated,compartments[1]);
+        V = new Compartment(CompartmentType.Exposed,compartments[2]);
+        I = new Compartment(CompartmentType.Infected,compartments[3]);
+        R = new Compartment(CompartmentType.Recovered,compartments[4]);
     }
 
-    public SVEIRPopulation(int students, int adults, int seniors) {
-        S = new Compartment(CompartmentType.Susceptible, students, adults, seniors);
-        V = new Compartment(CompartmentType.Vaccinated, 0, 0, 0);
-        E = new Compartment(CompartmentType.Exposed, 0, 0, 0);
-        I = new Compartment(CompartmentType.Infected, 0, 0, 0);
-        R = new Compartment(CompartmentType.Recovered, 0, 0, 0);
-    }
-
-    public SVEIRPopulation(ArrayList<Population> populations) {
-        S = new Compartment(CompartmentType.Susceptible, 0, 0, 0);
-        V = new Compartment(CompartmentType.Vaccinated, 0, 0, 0);
-        E = new Compartment(CompartmentType.Exposed, 0, 0, 0);
-        I = new Compartment(CompartmentType.Infected, 0, 0, 0);
-        R = new Compartment(CompartmentType.Recovered, 0, 0, 0);
-        for (Population p : populations) {
-            SVEIRPopulation pop = (SVEIRPopulation) p;
-            sumPopulation(pop);
-            addFlowsFromSubdivision(pop);
-        }
+    public SVEIRPopulation(int size) {
+        S = new Compartment(CompartmentType.Susceptible, size);
+        V = new Compartment(CompartmentType.Vaccinated, 0);
+        E = new Compartment(CompartmentType.Exposed, 0);
+        I = new Compartment(CompartmentType.Infected, 0);
+        R = new Compartment(CompartmentType.Recovered, 0);
     }
 
     public SVEIRPopulation(SVEIRPopulation population) {
@@ -49,75 +34,59 @@ public class SVEIRPopulation extends Population {
         R = new Compartment(population.R);
     }
 
-    public void sumPopulation(SVEIRPopulation pop) {
-        S.addPopulation(pop.S);
-        V.addPopulation(pop.V);
-        E.addPopulation(pop.E);
-        I.addPopulation(pop.I);
-        R.addPopulation(pop.R);
-    }
-
-    public void addFlowsFromSubdivision(SVEIRPopulation pop) {
-
-        // inFlow
-        for (AdminDivision division : pop.inFlow.keySet()) {
-            AdminDivision from = division.higherDivision;
-            if (inFlow.containsKey(from)) {
-                Flow oldFlow = inFlow.get(from);
-                Flow newFlow = new Flow(oldFlow, pop.inFlow.get(division));
-                inFlow.replace(from, newFlow);
-            } else {
-                inFlow.put(from, pop.inFlow.get(division));
-            }
-        }
-
-        // outFlow
-        for (AdminDivision division : pop.outFlow.keySet()) {
-            AdminDivision to = division.higherDivision;
-            if (outFlow.containsKey(to)) {
-                Flow oldFlow = outFlow.get(to);
-                Flow newFlow = new Flow(oldFlow, pop.outFlow.get(division));
-                outFlow.replace(to, newFlow);
-            }
-            else {
-                outFlow.put(to, pop.outFlow.get(division));
-            }
-        }
-    }
-
     @Override
     public Evaluation update(int vaccines) {
         Evaluation evaluation = new Evaluation();
 
-//        for (AdminDivision division : outFlow.keySet()) {
-//            SVEIRPopulation pop = (SVEIRPopulation)division.population;
-//            double flow = outFlow.get(division).getTotalFlow();
-//
-//            double sToI = calculateStoI(flow, pop);
-//            evaluation.infectedSum += sToI;
-//            changePopulationsProportionally(S, -sToI);
-//            changePopulationsProportionally(I, sToI);
-//
-//            double vToI = calculateVtoI(flow, pop);
-//            evaluation.infectedSum += vToI;
-//            changePopulationsProportionally(V, -vToI);
-//            changePopulationsProportionally(I, vToI);
-//        }
-//
-//        double sToV = calculateStoV(vaccines);
-//        changePopulationsProportionally(S, -sToV);
-//        changePopulationsProportionally(V, sToV);
-//
-//        double vToR = calculateVtoR();
-//        changePopulationsProportionally(V, -vToR);
-//        changePopulationsProportionally(R, vToR);
-//
-//        double iToR = calculateItoR();
-//        changePopulationsProportionally(I, -iToR);
-//        changePopulationsProportionally(R, iToR);
-//
-//        evaluation.mostConcurrentInfected = I.getTotalPopulation() + I.getTotalDiff();
+        // expositions in local area (S -> E)
+        double s = (getTotalPopulation() - getTotalOutFlow()) * getSusceptiblePercentage();
+        double i = getTotalInfectedWithFlows();
+        double e = getTotalExposedWithFlows();
+        double total = getPopulationAfterFlows();
+        double sToE = Config.contactRate * Config.infectedInfectiousness * s * i / total
+                + Config.contactRate * Config.exposedInfectiousness * s * e / total;
+        changePopulation(S, -sToE);
+        changePopulation(E, sToE);
 
+        // expositions in local area (V -> E)
+        double v = (getTotalPopulation() - getTotalOutFlow()) * getVaccinatedPercentage();
+        double vToE = Config.contactRate * Config.infectedInfectiousness * (1 - Config.vaccinationInfectionChanceReduction) * v * i / total
+                    + Config.contactRate * Config.exposedInfectiousness * (1 - Config.vaccinationInfectionChanceReduction) * v * e / total;
+        changePopulation(V, -vToE);
+        changePopulation(E, vToE);
+
+        // expositions in other areas
+        for (Powiat powiat : outFlow.keySet()) {
+            SVEIRPopulation pop = (SVEIRPopulation)powiat.getPopulation();
+            double flow = outFlow.get(powiat);
+
+            sToE = calculateStoE(flow, pop);
+            changePopulation(S, -sToE);
+            changePopulation(E, sToE);
+
+            vToE = calculateVtoE(flow, pop);
+            changePopulation(V, -vToE);
+            changePopulation(E, vToE);
+        }
+
+        double sToV = calculateStoV(vaccines);
+        changePopulation(S, -sToV);
+        changePopulation(V, sToV);
+
+        double eToI = calculateEtoI();
+        changePopulation(E, -eToI);
+        changePopulation(I, eToI);
+        evaluation.infectedSum += eToI;
+
+        double eToR = calculateEtoR();
+        changePopulation(E, -eToR);
+        changePopulation(R, eToR);
+
+        double iToR = calculateItoR();
+        changePopulation(I, -iToR);
+        changePopulation(R, iToR);
+
+        evaluation.mostConcurrentInfected = I.size + I.diff;
         return evaluation;
     }
 
@@ -130,113 +99,84 @@ public class SVEIRPopulation extends Population {
         R.applyChanges();
     }
 
-    private double calculateStoI(double flow, SVEIRPopulation pop) {
-        double s = flow * getSusceptiblePercentage();
-        double i = pop.getTotalInfectedInFlow();
-        double total = pop.getTotalInFlow(); //pop.getPopulationAfterFlows();
-        if (total > 0)
-            return Config.susceptibleTransmissionRate * s * i / total;
-        else
-            return  0;
-    }
-
     private double calculateStoV(int vaccines) {
-        return vaccines;
+        double vAfter = V.size + vaccines;
+        double maxVaccinated = Config.maxVaccinationPercentage * getTotalPopulation();
+        if (vAfter > maxVaccinated) {
+            return maxVaccinated - V.size;
+        } else {
+            return vaccines;
+        }
     }
 
-    private double calculateVtoI(double flow, SVEIRPopulation pop) {
-        double v = flow * getVaccinatedPercentage();
-        double i = pop.getTotalInfectedInFlow();
-        double total = pop.getTotalInFlow(); //pop.getPopulationAfterFlows();
+    private double calculateStoE(double flow, SVEIRPopulation pop) {
+        double s = flow * getSusceptiblePercentage();
+        double i = pop.getTotalInfectedWithFlows();
+        double e = pop.getTotalExposedWithFlows();
+        double total = pop.getPopulationAfterFlows();
         if (total > 0)
-            return Config.vaccinatedTransmissionRate * v * i / total;
+            return Config.contactRate * Config.infectedInfectiousness * s * i / total
+                    + Config.contactRate * Config.exposedInfectiousness * s * e / total;
         else
             return  0;
+    }
+
+    private double calculateVtoE(double flow, SVEIRPopulation pop) {
+        double v = flow * getVaccinatedPercentage();
+        double i = pop.getTotalInfectedWithFlows();
+        double e = pop.getTotalExposedWithFlows();
+        double total = pop.getPopulationAfterFlows();
+        if (total > 0)
+            return Config.contactRate * Config.infectedInfectiousness * (1 - Config.vaccinationInfectionChanceReduction) * v * i / total
+                    + Config.contactRate * Config.exposedInfectiousness * (1 - Config.vaccinationInfectionChanceReduction) * v * e / total;
+        else
+            return  0;
+    }
+
+    private double calculateEtoI() {
+        return (1 / Config.meanDurationOfLatency) * E.size;
+    }
+
+    private double calculateEtoR() {
+        return Config.recoveryRateOfLatents * E.size;
     }
 
     private double calculateItoR() {
-        return Config.recoveryRate * I.getTotalPopulation();
+        return Config.meanInfectedRecoveryRate * I.size;
     }
 
-    private double calculateVtoR() {
-        return Config.vaccineImmunizationRate * V.getTotalPopulation();
+    private void changePopulation(Compartment compartment, double diff) {
+        compartment.diff += diff;
     }
 
-    private void changePopulationsProportionally(Compartment compartment, double diff) {
-        double total = getTotalPopulation();
-        if (total != 0) {
-            compartment.studentsDiff += diff * getTotalStudents() / total;
-            compartment.adultsDiff += diff * getTotalAdults() / total;
-            compartment.seniorsDiff += diff * getTotalSeniors() / total;
-        }
-    }
-
+    double totalPopulation = -1;
     @Override
     public double getTotalPopulation() {
-        return S.getTotalPopulation() + V.getTotalPopulation() + E.getTotalPopulation()  + I.getTotalPopulation() + R.getTotalPopulation();
-    }
-
-    @Override
-    public double getTotalStudents() {
-        return S.students + V.students + E.students + I.students + R.students;
-    }
-
-    @Override
-    public double getTotalAdults() {
-        return S.adults + V.adults + E.adults + I.adults + R.adults;
-    }
-
-    @Override
-    public double getTotalSeniors() {
-        return S.seniors + V.seniors + E.seniors + I.seniors + R.seniors;
+        if (totalPopulation < 0)
+        {
+            totalPopulation = S.size + V.size + E.size + I.size + R.size;
+        }
+        return totalPopulation;
     }
 
     public double getSusceptiblePercentage() {
-        return S.getTotalPopulation() / getTotalPopulation();
+        return S.size / getTotalPopulation();
     }
 
     public double getVaccinatedPercentage() {
-        return V.getTotalPopulation() / getTotalPopulation();
-    }
-
-    public double getExposedPercentage() {
-        return E.getTotalPopulation() / getTotalPopulation();
+        return V.size / getTotalPopulation();
     }
 
     public double getInfectedPercentage() {
-        return I.getTotalPopulation() / getTotalPopulation();
+        return I.size / getTotalPopulation();
     }
 
-    public double getRecoveredPercentage() {
-        return R.getTotalPopulation() / getTotalPopulation();
-    }
-
-    public double getTotalSusceptibleWithFlows() {
-        double totalS = S.getTotalPopulation();
-        for (AdminDivision division : inFlow.keySet()) {
-            SVEIRPopulation pop = (SVEIRPopulation)division.population;
-            totalS += inFlow.get(division).getTotalFlow() * pop.getSusceptiblePercentage();
-        }
-        for (AdminDivision commune : outFlow.keySet()) {
-            totalS -= outFlow.get(commune).getTotalFlow() * getSusceptiblePercentage();
-        }
-        return totalS;
-    }
-
-    public double getTotalVaccinatedWithFlows() {
-        double totalV = V.getTotalPopulation();
-        for (AdminDivision division : inFlow.keySet()) {
-            SVEIRPopulation pop = (SVEIRPopulation)division.population;
-            totalV += inFlow.get(division).getTotalFlow() * pop.getVaccinatedPercentage();
-        }
-        for (AdminDivision division : outFlow.keySet()) {
-            totalV -= outFlow.get(division).getTotalFlow() * getVaccinatedPercentage();
-        }
-        return totalV;
+    public double getExposedPercentage() {
+        return E.size / getTotalPopulation();
     }
 
     public double getTotalInfectedWithFlows() {
-        double totalI = I.getTotalPopulation();
+        double totalI = I.size;
         totalI += getTotalInfectedInFlow();
         totalI -= getTotalInfectedOutFlow();
         return totalI;
@@ -244,30 +184,42 @@ public class SVEIRPopulation extends Population {
 
     public double getTotalInfectedInFlow() {
         double total = 0;
-        for (AdminDivision division : inFlow.keySet()) {
-            SVEIRPopulation pop = (SVEIRPopulation)division.population;
-            total += inFlow.get(division).getTotalFlow() * pop.getInfectedPercentage();
+        for (Powiat sourcePowiat : inFlow.keySet()) {
+            SVEIRPopulation pop = (SVEIRPopulation)sourcePowiat.getPopulation();
+            total += inFlow.get(sourcePowiat) * pop.getInfectedPercentage();
         }
         return total;
     }
 
     public double getTotalInfectedOutFlow() {
         double total = 0;
-        for (AdminDivision division : outFlow.keySet()) {
-            total += outFlow.get(division).getTotalFlow() * getInfectedPercentage();
+        for (Powiat targetPowiat : outFlow.keySet()) {
+            total += outFlow.get(targetPowiat) * getInfectedPercentage();
         }
         return total;
     }
 
-    public double getTotalRecoveredWithFlows() {
-        double totalR = R.getTotalPopulation();
-        for (AdminDivision division : inFlow.keySet()) {
-            SVEIRPopulation pop = (SVEIRPopulation)division.population;
-            totalR += inFlow.get(division).getTotalFlow() * pop.getRecoveredPercentage();
+    public double getTotalExposedWithFlows() {
+        double totalE = E.size;
+        totalE += getTotalExposedInFlow();
+        totalE -= getTotalExposedOutFlow();
+        return totalE;
+    }
+
+    public double getTotalExposedInFlow() {
+        double total = 0;
+        for (Powiat sourcePowiat : inFlow.keySet()) {
+            SVEIRPopulation pop = (SVEIRPopulation)sourcePowiat.getPopulation();
+            total += inFlow.get(sourcePowiat) * pop.getExposedPercentage();
         }
-        for (AdminDivision division : outFlow.keySet()) {
-            totalR -= outFlow.get(division).getTotalFlow() * getRecoveredPercentage();
+        return total;
+    }
+
+    public double getTotalExposedOutFlow() {
+        double total = 0;
+        for (Powiat targetPowiat : outFlow.keySet()) {
+            total += outFlow.get(targetPowiat) * getExposedPercentage();
         }
-        return totalR;
+        return total;
     }
 }
