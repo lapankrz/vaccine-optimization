@@ -1,6 +1,7 @@
 package com.vaccines.models;
 
 import com.vaccines.areas.Country;
+import com.vaccines.areas.Powiat;
 import com.vaccines.evaluations.Evaluation;
 
 import java.util.ArrayList;
@@ -33,6 +34,8 @@ public class EpidemiologicalModel {
 
         simulationStep = 0;
         evaluation = new Evaluation();
+
+        infections = mostConcurrent = deaths = null;
     }
 
     public void simulate() {
@@ -43,6 +46,13 @@ public class EpidemiologicalModel {
         for (simulationStep = 0; simulationStep < simulationLength; ++simulationStep)
         {
             simulateStep();
+        }
+
+        for (Powiat powiat : country.powiaty) {
+            for (int i = 0; i < powiat.vaccinationPercentage.size(); ++i) {
+                double value = powiat.vaccinationPercentage.get(i);
+                powiat.vaccinationPercentage.set(i, value / powiat.getPopulationCount());
+            }
         }
     }
 
@@ -68,11 +78,6 @@ public class EpidemiologicalModel {
     public void setVaccineAvailability(ArrayList<ArrayList<Double>> availability)
     {
         vaccineAvailability = new int[getNumberOfWeeks()][getLowestDivisionCount()];
-        for (var week : availability) {
-            for (double d : week) {
-
-            }
-        }
         for (int i = 0; i < getNumberOfWeeks(); ++i) {
             for (int j = 0; j < getLowestDivisionCount(); ++j) {
                 vaccineAvailability[i][j] = availability.get(i).get(j).intValue();

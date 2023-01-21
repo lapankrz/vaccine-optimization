@@ -6,6 +6,7 @@ import com.vaccines.populations.SVIRPopulation;
 
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Locale;
 
 public class Powiat {
@@ -17,6 +18,7 @@ public class Powiat {
     private Population population;
     public Position position;
     public double area;
+    public ArrayList<Double> vaccinationPercentage = new ArrayList<>();
 
     public Powiat(String[] data, Country country) throws ParseException {
         this.code = getProperCode(data[0]);
@@ -42,6 +44,8 @@ public class Powiat {
             this.population = new SVIRPopulation((SVIRPopulation) powiat.population);
         else
             this.population = new SVEIRPopulation((SVEIRPopulation) powiat.population);
+
+        vaccinationPercentage = new ArrayList<>();
     }
 
     public void initializeInfected(double numberOfInfected) {

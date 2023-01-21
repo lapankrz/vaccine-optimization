@@ -12,7 +12,7 @@ public class SVEIRPopulation extends Population {
     public SVEIRPopulation(int[] compartments) {
         S = new Compartment(CompartmentType.Susceptible, compartments[0]);
         V = new Compartment(CompartmentType.Vaccinated,compartments[1]);
-        V = new Compartment(CompartmentType.Exposed,compartments[2]);
+        E = new Compartment(CompartmentType.Exposed,compartments[2]);
         I = new Compartment(CompartmentType.Infected,compartments[3]);
         R = new Compartment(CompartmentType.Recovered,compartments[4]);
     }
@@ -32,6 +32,8 @@ public class SVEIRPopulation extends Population {
         E = new Compartment(population.E);
         I = new Compartment(population.I);
         R = new Compartment(population.R);
+        this.powiat = population.powiat;
+        this.totalPopulation = -1;
     }
 
     @Override
@@ -72,6 +74,7 @@ public class SVEIRPopulation extends Population {
         double sToV = calculateStoV(vaccines);
         changePopulation(S, -sToV);
         changePopulation(V, sToV);
+        updateVaccinationPercentage(sToV);
 
         double eToI = calculateEtoI();
         changePopulation(E, -eToI);
@@ -97,6 +100,14 @@ public class SVEIRPopulation extends Population {
         E.applyChanges();
         I.applyChanges();
         R.applyChanges();
+    }
+
+    void updateVaccinationPercentage(double vaccinated) {
+        int size = powiat.vaccinationPercentage.size();
+        if (size > 0) {
+            vaccinated += powiat.vaccinationPercentage.get(size - 1);
+        }
+        powiat.vaccinationPercentage.add(vaccinated);
     }
 
     private double calculateStoV(int vaccines) {

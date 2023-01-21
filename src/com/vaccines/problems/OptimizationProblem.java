@@ -1,12 +1,9 @@
 package com.vaccines.problems;
 
-import com.vaccines.evaluations.EvaluationType;
 import com.vaccines.models.EpidemiologicalModel;
 import org.moeaframework.core.Solution;
 import org.moeaframework.core.variable.RealVariable;
 import org.moeaframework.problem.AbstractProblem;
-
-import java.util.Arrays;
 
 public abstract class OptimizationProblem extends AbstractProblem {
 
@@ -23,10 +20,6 @@ public abstract class OptimizationProblem extends AbstractProblem {
         this.maxWeeklyVaccines = maxWeeklyVaccines;
         this.lengthInWeeks = model.getNumberOfWeeks();
         this.subdivisionCount = model.getLowestDivisionCount();
-    }
-
-    public void loadStartingVariables(double[] variables) {
-        startingVariables = variables;
     }
 
     @Override

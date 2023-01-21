@@ -30,6 +30,7 @@ public class SVIRPopulation extends Population {
         I = new Compartment(population.I);
         R = new Compartment(population.R);
         this.powiat = population.powiat;
+        this.totalPopulation = -1;
     }
 
     public void sumPopulation(SVIRPopulation pop) {
@@ -78,6 +79,7 @@ public class SVIRPopulation extends Population {
         double sToV = calculateStoV(vaccines);
         changePopulation(S, -sToV);
         changePopulation(V, sToV);
+        updateVaccinationPercentage(sToV);
 
         double vToR = calculateVtoR();
         changePopulation(V, -vToR);
@@ -97,6 +99,14 @@ public class SVIRPopulation extends Population {
         V.applyChanges();
         I.applyChanges();
         R.applyChanges();
+    }
+
+    void updateVaccinationPercentage(double vaccinated) {
+        int size = powiat.vaccinationPercentage.size();
+        if (size > 0) {
+            vaccinated += powiat.vaccinationPercentage.get(size - 1);
+        }
+        powiat.vaccinationPercentage.add(vaccinated);
     }
 
     private double calculateStoI(double flow, SVIRPopulation pop) {

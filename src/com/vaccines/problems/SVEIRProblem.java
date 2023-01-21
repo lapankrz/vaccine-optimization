@@ -1,13 +1,11 @@
 package com.vaccines.problems;
 
-import com.vaccines.Main;
-import com.vaccines.evaluations.EvaluationType;
+import com.vaccines.SolutionUtils;
 import com.vaccines.models.EpidemiologicalModel;
 import org.moeaframework.core.Solution;
 import org.moeaframework.core.variable.RealVariable;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 
 public class SVEIRProblem extends OptimizationProblem {
 
@@ -46,9 +44,9 @@ public class SVEIRProblem extends OptimizationProblem {
             if (eval % 100 == 0) {
                 System.out.println("Evaluation " + eval + " - INF: " + (int)sveir.evaluation.infectedSum
                         + ", MCI: " + (int)sveir.evaluation.mostConcurrentInfected);
-                String fileName = "problem" + Main.solutionNumber + "_eval" + eval + "_inf" + (int)sveir.evaluation.infectedSum
-                        + "_mci" + (int)sveir.evaluation.mostConcurrentInfected + "_" + Main.dtf.format(LocalDateTime.now()) + ".csv";
-                Main.writeSolutionToFile(solution, fileName, lengthInWeeks, subdivisionCount);
+                String fileName = "sveir" + "_eval" + eval + "_inf" + (int)sveir.evaluation.infectedSum
+                        + "_mci" + (int)sveir.evaluation.mostConcurrentInfected + "_" + SolutionUtils.dtf.format(LocalDateTime.now()) + ".csv";
+                SolutionUtils.writeSolutionToFile(solution, fileName, lengthInWeeks, subdivisionCount);
             }
         }
         else {

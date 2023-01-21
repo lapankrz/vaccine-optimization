@@ -13,6 +13,7 @@ import java.util.*;
 import java.util.stream.Stream;
 
 public class Country {
+
     public String name;
     public ArrayList<Powiat> powiaty = new ArrayList<>();
     public Country() { }
@@ -26,6 +27,7 @@ public class Country {
         for (Powiat powiat : country.powiaty) {
             powiaty.add(new Powiat(powiat));
         }
+        totalPopulation = -1;
     }
 
     public Evaluation simulateStep(int[] vaccines) {
@@ -68,6 +70,7 @@ public class Country {
 
     public void loadPolishData(ModelType type, int minFlowVolume) {
         name = "Poland";
+        int flowPairs = 0;
 
         // powiat data
         try {
@@ -109,9 +112,10 @@ public class Country {
                     if (!StringUtils.isEmpty(s)) {
                         int flowVolume = Integer.parseInt(s);
                         Powiat sourcePowiat = getPowiatByName(powiatNames[i]);
-                        if (!Objects.equals(sourcePowiat.name, targetPowiatName)) {
+                        if (!Objects.equals(sourcePowiat.name, targetPowiatName) && flowVolume >= minFlowVolume) {
                             sourcePowiat.getPopulation().outFlow.put(targetPowiat, (double) flowVolume);
                             targetPowiat.getPopulation().inFlow.put(sourcePowiat, (double) flowVolume);
+                            flowPairs += 1;
                         } else {
                             sourcePowiat.getPopulation().selfMigration = flowVolume;
                         }
@@ -141,5 +145,23 @@ public class Country {
             System.out.println("Error reading infection data. " + e.toString());
         }
         System.out.println("Finished reading historical data.");
+        System.out.println("Number of flows between powiats: " + flowPairs);
+
+        double grodzkie = 0, ziemskie = 0, over300k = 0;
+        for (Powiat powiat: powiaty) {
+            if (powiat.type == PowiatType.Grodzki) {
+                double pop = powiat.getPopulationCount();
+                grodzkie += pop;
+                if (pop >= 300000) {
+                    over300k += pop;
+                }
+            }
+            else
+                ziemskie += powiat.getPopulationCount();
+        }
+        double total = grodzkie + ziemskie;
+        System.out.println("Populacja powiatów grodzkich: " + (int)grodzkie + " (" + 100 * grodzkie / total + " %)");
+        System.out.println("\tW tym powiaty ponad 300k mieszkańców: " + (int)over300k + " (" + 100 * over300k / total + " %)");
+        System.out.println("Populacja powiatów ziemskich: " + (int)ziemskie + " (" + 100 * ziemskie / total + " %)");
     }
 }
