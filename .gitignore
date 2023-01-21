@@ -1,4 +1,5 @@
 out/
-solutions/
+solutions/*
+!solutions/final
 .idea/
 *.bak
